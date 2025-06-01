@@ -1,0 +1,34 @@
+name: Update EuroMillions CSV
+
+on:
+  schedule:
+    - cron: '0 7 * * 3'   # Mercredi à 7h00 UTC (9h à La Réunion)
+    - cron: '0 7 * * 6'   # Samedi à 7h00 UTC
+  workflow_dispatch:      # Permet de lancer manuellement le workflow
+
+jobs:
+  update-csv:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du dépôt
+        uses: actions/checkout@v3
+
+      - name: Installer Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Installer les dépendances
+        run: pip install pandas requests beautifulsoup4
+
+      - name: Exécuter le script Python
+        run: python update_csv.py
+
+      - name: Commit et push si modifications
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add euromillions_merged.csv
+          git commit -m "🔄 Mise à jour automatique du fichier CSV" || echo "Pas de modifications"
+          git push
