@@ -2,6 +2,18 @@ import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 from datetime import datetime
+import locale
+
+# 🗓️ Utiliser la locale française pour lire les dates en français
+try:
+    locale.setlocale(locale.LC_TIME, 'fr_FR.UTF-8')
+except locale.Error:
+    print("⚠️ Locale fr_FR.UTF-8 non disponible, tentative avec fr_FR")
+    try:
+        locale.setlocale(locale.LC_TIME, 'fr_FR')
+    except locale.Error:
+        print("❌ Locale française non disponible sur ce système.")
+        exit(1)
 
 # 🔄 Corriger les formats de date dans le DataFrame
 def corriger_dates_dataframe(df):
