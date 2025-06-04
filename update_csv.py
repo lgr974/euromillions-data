@@ -77,7 +77,7 @@ def update_csv(file_path="euromillions_merged.csv", force=False):
     draw = fetch_latest_draw()
 
     try:
-        df_old = pd.read_csv(file_path, sep="\t")
+        df_old = pd.read_csv(file_path, sep=";")
         if "date_de_tirage" not in df_old.columns:
             print("⚠️ La colonne 'date_de_tirage' est absente. Recréation du fichier.")
             df_old = pd.DataFrame()
@@ -102,7 +102,7 @@ def update_csv(file_path="euromillions_merged.csv", force=False):
     df_final["date_de_tirage"] = df_final["date_de_tirage"].dt.strftime("%Y-%m-%d")
 
     # Sauvegarde du fichier CSV
-    df_final.to_csv(file_path, index=False, sep="\t")
+    df_final.to_csv(file_path, index=False, sep=";")
     print("✅ Fichier mis à jour :", file_path)
 
 # ⬇️ Exécution principale
