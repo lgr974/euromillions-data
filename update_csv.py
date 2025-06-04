@@ -20,20 +20,49 @@ def corriger_dates_dataframe(df):
 def fetch_latest_draw():
     url = "https://tirage-gagnant.com/euromillions/"
     response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
+    soup = BeautifulSoup(response.content, "html.parser")
 
-    # 📅 Extraire la date du tirage
-    h2_tag = soup.find("h2")
-    if h2_tag is None:
-        raise ValueError("❌ Impossible de trouver la date du tirage.")
+    # Recherche du bon bloc contenant la date
+    date_text = None
+    for h3 in soup.find_all("h3"):
+        text = h3.get_text(strip=True).lower()
+        if "tirage euromillions du" in text:
+            date_text = text.replace("tirage euromillions du ", "")
+            break
 
-    date_str = h2_tag.get_text(strip=True)
-    date_part = date_str.split("du")[-1].strip()
+    if not date_text:
+        raise ValueError("❌ Impossible de trouver la date du dernier tirage.")
+
+    # Formatage de la date en français
     try:
-        draw_date = datetime.strptime(date_part, "%A %d %B %Y")
+        draw_date = datetime.strptime(date_text, "%A %d %B %Y")
     except ValueError:
-        draw_date = datetime.strptime(date_part, "%d %B %Y")
-    draw_date_str = draw_date.strftime("%Y-%m-%d")
+        try:
+            draw_date = datetime.strptime(date_text, "%d %B %Y")
+        except ValueError:
+            raise ValueError(f"❌ Format de date non reconnu : '{date_text}'")
+
+    # Récupération des 5 numéros
+    numbers = [p.text.strip() for p in soup.select("p.num_v2")]
+    if len(numbers) != 5:
+        raise ValueError(f"❌ 5 numéros attendus, trouvés : {len(numbers)}")
+
+    # Récupération des 2 étoiles
+    stars = [p.text.strip() for p in soup.select("p.num_etoile")]
+    if len(stars) != 2:
+        raise ValueError(f"❌ 2 étoiles attendues, trouvées : {len(stars)}")
+
+    return {
+        "date_de_tirage": draw_date.strftime("%Y-%m-%d"),
+        "boule_1": int(numbers[0]),
+        "boule_2": int(numbers[1]),
+        "boule_3": int(numbers[2]),
+        "boule_4": int(numbers[3]),
+        "boule_5": int(numbers[4]),
+        "etoile_1": int(stars[0]),
+        "etoile_2": int(stars[1]),
+    }
+
 
     # 🔢 Numéros
     numbers = [p.text.strip() for p in soup.select("p.num_v2")]
