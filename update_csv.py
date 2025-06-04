@@ -25,7 +25,8 @@ def corriger_dates_dataframe(df):
                 return datetime.strptime(date, "%d/%m/%Y").strftime("%Y-%m-%d")
             except:
                 return date
-    df["date_de_tirage"] = df["date_de_tirage"].astype(str).apply(corriger)
+    if "date_de_tirage" in df.columns:
+        df["date_de_tirage"] = df["date_de_tirage"].astype(str).apply(corriger)
     return df
 
 # 📥 Récupérer le dernier tirage depuis le site
@@ -76,8 +77,12 @@ def update_csv(file_path="euromillions_merged.csv", force=False):
     draw = fetch_latest_draw()
 
     try:
-        df_old = pd.read_csv(file_path)
-        df_old = corriger_dates_dataframe(df_old)
+        df_old = pd.read_csv(file_path, sep="\t")
+        if "date_de_tirage" not in df_old.columns:
+            print("⚠️ La colonne 'date_de_tirage' est absente. Recréation du fichier.")
+            df_old = pd.DataFrame()
+        else:
+            df_old = corriger_dates_dataframe(df_old)
     except FileNotFoundError:
         df_old = pd.DataFrame()
 
@@ -97,10 +102,11 @@ def update_csv(file_path="euromillions_merged.csv", force=False):
     df_final["date_de_tirage"] = df_final["date_de_tirage"].dt.strftime("%Y-%m-%d")
 
     # Sauvegarde du fichier CSV
-    df_final.to_csv(file_path, index=False)
+    df_final.to_csv(file_path, index=False, sep="\t")
     print("✅ Fichier mis à jour :", file_path)
 
 # ⬇️ Exécution principale
 if __name__ == "__main__":
     update_csv("euromillions_merged.csv")
+
 
