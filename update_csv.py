@@ -1,72 +1,92 @@
-import pandas as pd
 import requests
+import pandas as pd
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timedelta
 
-URL = "https://tirage-gagnant.com/euromillions/"
-CSV_FILE = "euromillions_merged.csv"
+# 🔄 Corriger les formats de date dans le DataFrame
+def corriger_dates_dataframe(df):
+    def corriger(date):
+        try:
+            return datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m-%d")
+        except:
+            try:
+                return datetime.strptime(date, "%d/%m/%Y").strftime("%Y-%m-%d")
+            except:
+                return date
+    df["date_de_tirage"] = df["date_de_tirage"].astype(str).apply(corriger)
+    return df
 
+# 📥 Récupérer le dernier tirage depuis le site
 def fetch_latest_draw():
-    response = requests.get(URL)
-    if response.status_code != 200:
-        raise Exception(f"Erreur lors du chargement de la page ({response.status_code})")
+    url = "https://tirage-gagnant.com/euromillions/"
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, "html.parser")
 
-    soup = BeautifulSoup(response.content, "html.parser")
+    # 📅 Extraire la date du tirage
+    h2_tag = soup.find("h2")
+    if h2_tag is None:
+        raise ValueError("❌ Impossible de trouver la date du tirage.")
 
-    # Date
-    date_str = soup.select_one("span.date_min").text.strip()
-    draw_date = datetime.strptime(date_str, "%d/%m/%Y").date()
+    date_str = h2_tag.get_text(strip=True)
+    date_part = date_str.split("du")[-1].strip()
+    try:
+        draw_date = datetime.strptime(date_part, "%A %d %B %Y")
+    except ValueError:
+        draw_date = datetime.strptime(date_part, "%d %B %Y")
+    draw_date_str = draw_date.strftime("%Y-%m-%d")
 
-    # Numéros
-    number_tags = soup.select("p.num_v2")
-    numbers = [int(tag.text.strip()) for tag in number_tags[:5]]
+    # 🔢 Numéros
+    numbers = [p.text.strip() for p in soup.select("p.num_v2")]
+    if len(numbers) != 5:
+        raise ValueError(f"❌ 5 numéros attendus, trouvés : {len(numbers)}")
 
-    # Étoiles
-    star_tags = soup.select("span.etoile-num")
-    stars = [int(tag.text.strip()) for tag in star_tags[:2]]
-
-    if len(numbers) != 5 or len(stars) != 2:
-        raise ValueError("Le nombre de boules ou d'étoiles est incorrect.")
-
-    print(f"Tirage récupéré : {draw_date} - Boules : {numbers} - Étoiles : {stars}")
+    # ✨ Étoiles
+    stars = [p.text.strip() for p in soup.select("p.etoile_v2")]
+    if len(stars) != 2:
+        raise ValueError(f"❌ 2 étoiles attendues, trouvées : {len(stars)}")
 
     return {
-        "date_de_tirage": draw_date,
-        "boule_1": numbers[0],
-        "boule_2": numbers[1],
-        "boule_3": numbers[2],
-        "boule_4": numbers[3],
-        "boule_5": numbers[4],
-        "etoile_1": stars[0],
-        "etoile_2": stars[1],
+        "date_de_tirage": draw_date_str,
+        "boule_1": int(numbers[0]),
+        "boule_2": int(numbers[1]),
+        "boule_3": int(numbers[2]),
+        "boule_4": int(numbers[3]),
+        "boule_5": int(numbers[4]),
+        "etoile_1": int(stars[0]),
+        "etoile_2": int(stars[1])
     }
 
-def update_csv(file_path):
+# 🔄 Mettre à jour le fichier CSV
+def update_csv(file_path="euromillions_merged.csv", force=False):
     draw = fetch_latest_draw()
 
-    # Chargement du fichier CSV
     try:
-        df_old = pd.read_csv(file_path, sep=";")
+        df_old = pd.read_csv(file_path)
+        df_old = corriger_dates_dataframe(df_old)
     except FileNotFoundError:
-        print("Fichier non trouvé, création d’un nouveau fichier.")
-        df_old = pd.DataFrame(columns=[
-            "date_de_tirage", "boule_1", "boule_2", "boule_3",
-            "boule_4", "boule_5", "etoile_1", "etoile_2"
-        ])
+        df_old = pd.DataFrame()
 
-    # Vérification de l'existence
-    draw_date_str = str(draw["date_de_tirage"])
-    if draw_date_str in df_old["date_de_tirage"].astype(str).values:
-        print("✅ Tirage déjà présent. Aucune mise à jour nécessaire.")
+    # Si déjà présent (et non forcé), on ne fait rien
+    if not force and not df_old.empty and draw["date_de_tirage"] in df_old["date_de_tirage"].values:
+        print("✅ Tirage déjà présent :", draw["date_de_tirage"])
         return
 
-    # Ajout du tirage
-    new_row = pd.DataFrame([draw])
-    df_new = pd.concat([df_old, new_row], ignore_index=True)
+    # Ajouter le tirage
+    df_new = pd.DataFrame([draw])
+    df_final = pd.concat([df_old, df_new], ignore_index=True)
+
+    # Re-corriger les dates (par précaution)
+    df_final = corriger_dates_dataframe(df_final)
+
+    # Réordonner par date
+    df_final["date_de_tirage"] = pd.to_datetime(df_final["date_de_tirage"])
+    df_final = df_final.sort_values("date_de_tirage", ascending=True)
+    df_final["date_de_tirage"] = df_final["date_de_tirage"].dt.strftime("%Y-%m-%d")
 
     # Sauvegarde
-    df_new.to_csv(file_path, sep=";", index=False)
-    print("✅ Fichier mis à jour avec le nouveau tirage.")
+    df_final.to_csv(file_path, index=False)
+    print("✅ Fichier mis à jour :", file_path)
 
+# ⬇️ Exécution
 if __name__ == "__main__":
-    update_csv(CSV_FILE)
+    update_csv("euromillions_merged.csv")
