@@ -1,44 +1,44 @@
-name: Update EuroMillions CSV
+name: mise à jour-csv
 
 on:
   schedule:
-    - cron: '0 3 * * 3'   # Mercredi à 3h00 UTC (7h à La Réunion)
-    - cron: '0 7 * * 3'   # Mercredi à 7h00 UTC (11h à La Réunion) mise a jour non pret à 7h Réunion
-    - cron: '0 3 * * 6'   # Samedi à 3h00 UTC
-    - cron: '0 7 * * 6'   # Samedi à 7h00 UTC
-  workflow_dispatch:      # Permet de lancer manuellement le workflow
+    # Tirages : mardi et vendredi vers 21 h (Paris). Plusieurs passages le soir
+    # (heure d'été et d'hiver) + un rattrapage le lendemain matin.
+    - cron: "30 19,20,21,22 * * 2,5"
+    - cron: "0 7 * * 3,6"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-csv
+  cancel-in-progress: false
 
 jobs:
-  update-csv:
+  mise-a-jour-csv:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout du dépôt
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Installer Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.12"
 
       - name: Installer les dépendances
-        run: pip install pandas requests beautifulsoup4
+        run: pip install requests beautifulsoup4
 
-      - name: Installer la locale française
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y locales
-          sudo locale-gen fr_FR.UTF-8
-          sudo update-locale LANG=fr_FR.UTF-8
-          export LANG=fr_FR.UTF-8
-
-      - name: Exécuter le script Python
+      - name: Mettre à jour le CSV
         run: python update_csv.py
 
-      - name: Commit et push si modifications
+      - name: Enregistrer si le fichier a changé
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add euromillions_merged.csv
-          git commit -m "🔄 Mise à jour automatique du fichier CSV" || echo "Pas de modifications"
-          git push
+          if git diff --cached --quiet; then
+            echo "Rien à enregistrer."
+          else
+            git commit -m "Mise à jour automatique des tirages"
+            git push
+          fi
